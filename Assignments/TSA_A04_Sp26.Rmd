@@ -1,7 +1,7 @@
 ---
 title: "ENV 797 - Time Series Analysis for Energy and Environment Applications | Spring 2026"
 subtitle: "Assignment 4 - Due date 02/10/26"
-author: "Student Name"
+author: "Abrao Soares Pereira"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
@@ -21,17 +21,42 @@ When you have completed the assignment, **Knit** the text and code into a single
 R packages needed for this assignment: "xlsx" or "readxl", "ggplot2", "forecast","tseries", and "Kendall". Install these packages, if you haven't done yet. Do not forget to load them before running your script, since they are NOT default packages.\\
 
 ```{r message=FALSE, warning=FALSE}
-#Load/install required package here
-
+#Load/install required package
+library(tseries)
+library(Kendall)
+library(dplyr)
+library(cowplot)
+library(readxl)
+library(lubridate)
+library(forecast)
+library(ggplot2)
+library(outliers)
+library(tidyverse)
 ```
 
 ## Questions 
 
 Consider the same data you used for A3 from the spreadsheet "Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx". The data comes from the US Energy Information and Administration and corresponds to the December 2025 Monthly Energy Review. **For this assignment you will work only with the column "Total Renewable Energy Production"**. 
 
-```{r message=FALSE, warning=FALSE}
+```{r load dataset into R, message=FALSE, warning=FALSE}
 #Importing data set - you may copy your code from A3
+url <- "https://www.eia.gov/totalenergy/data/browser/xls.php?tbl=T10.01&freq=m"
+tmp <- tempfile(fileext = ".xlsx")
+download.file(url, tmp, mode = "wb")
 
+eia_excel_energy <- read_excel(tmp, skip = 12, col_names = FALSE)
+read_col_names <- read_excel(tmp, skip = 10, n_max = 1, col_names = FALSE)
+colnames(eia_excel_energy) <- as.character(unlist(read_col_names))
+
+#Select only Total Renewable Energy Production
+energy_subset <- eia_excel_energy %>%
+  select(`Total Renewable Energy Production`) %>%
+  mutate(across(everything(), as.numeric))
+
+#Convert to time series object
+energy_ts <- ts(energy_subset, start = c(1973, 1), frequency = 12)
+nobserved <- nrow(energy_subset)
+head(energy_ts)
 
 ```
 
@@ -50,14 +75,50 @@ Difference the "Total Renewable Energy Production" series using function diff().
 Try differencing at lag 1 only once, i.e., make `lag=1` and `differences=1`. Plot the differenced series. Do the series still seem to have trend?
 
 ```{r}
+#Difference at lag 1, one time
+diff_renewable <- diff(energy_subset$`Total Renewable Energy Production`,
+                       lag = 1, differences = 1)
 
+#Convert to ts object
+ts_diff_renewable <- ts(diff_renewable, start = c(1973, 2), frequency = 12)
+
+#Show first 24 differenced values - note Jan 1973 is dropped
+head(ts_diff_renewable, 24)
+
+#Plot original and differenced series together
+autoplot(energy_ts[,"Total Renewable Energy Production"], series = "Original") +
+  autolayer(ts_diff_renewable, series = "Differenced") +
+  labs(title = "Total Renewable Energy Production",
+       x = "Year", y = "Trillion Btu") +
+  theme_minimal()
 ```
+
+
+
+> Answer: After differencing, the series no longer shows the upward trend that was visible in the original. The values fluctuate around zero across the whole time period instead of climbing from 200 to 800. This means the differencing successfully removed the trend.
 
 
 ### Q2
 Copy and paste part of your code for A3 where you run the regression for Total Renewable Energy Production and subtract that from the original series. This should be the code for Q3 and Q4. make sure you use assign same name for the time series object that you had in A3, otherwise the code will not work.
 
 ```{r}
+t <- c(1:nobserved)
+
+lm_renewable <- lm(energy_subset$`Total Renewable Energy Production` ~ t)
+summary(lm_renewable)
+
+#Save coefficients
+beta0_renewable <- as.numeric(lm_renewable$coefficients[1])
+beta1_renewable <- as.numeric(lm_renewable$coefficients[2])
+
+#Detrend
+detrend_renewable <- energy_subset$`Total Renewable Energy Production` -
+  (beta0_renewable + beta1_renewable * t)
+
+#Convert to ts object
+ts_detrend_renewable <- ts(detrend_renewable, start = c(1973, 1), frequency = 12)
+
+
 
 ```
 
@@ -69,41 +130,107 @@ Using autoplot() + autolayer() create a plot that shows the three series togethe
 What can you tell from this plot? Which method seems to have been more efficient in removing the trend?
 
 ```{r}
+autoplot(energy_ts[,"Total Renewable Energy Production"], series = "Original") +
+  autolayer(ts_detrend_renewable, series = "Detrended lm()") +
+  autolayer(ts_diff_renewable,    series = "Differenced") +
+  labs(title = "Original vs Detrended vs Differenced - Total Renewable Energy",
+       x = "Year", y = "Trillion Btu") +
+  theme_minimal()
 
 ```
 
-> Answer: 
+> Answer: The differenced series fluctuates a lot around zero across the whole time period, while the detrended series (from linear regression) still shows a U-shape, it dips down in the early 2000s and then rises again toward the end. This suggests the linear regression did not fully remove the trend because the actual trend is not a perfect straight line. Differencing seems to have been more efficient at removing the trend in this series.
 
 ### Q4
 Plot the ACF for the three series and compare the plots. Add the argument `ylim=c(-0.5,1)` to the autoplot() or Acf() function - whichever you are using to generate the plots - to make sure all three y axis have the same limits. Looking at the ACF which method do you think was more efficient in eliminating the trend? The linear regression or differencing?
 
 ```{r}
+plot_grid(
+  autoplot(Acf(energy_ts[,"Total Renewable Energy Production"],
+               lag.max = 40, plot = FALSE)) +
+    ylim(-0.5, 1) +
+    ggtitle("ACF - Original"),
+  
+  autoplot(Acf(ts_detrend_renewable,
+               lag.max = 40, plot = FALSE)) +
+    ylim(-0.5, 1) +
+    ggtitle("ACF - Detrended lm()"),
+  
+  autoplot(Acf(ts_diff_renewable,
+               lag.max = 40, plot = FALSE)) +
+    ylim(-0.5, 1) +
+    ggtitle("ACF - Differenced"),
+  
+  nrow = 1
+)
+
 
 ```
 
-> Answer: 
+> Answer: The ACF of the original series shows a slow decay across all 40 lags, which is the classic sign of a strong trend. The detrended series ACF still shows slow decay, just slightly less, which means linear regression did not fully remove the trend. The differenced series ACF drops off quickly and only shows seasonal spikes at lags 12, 24, and 36. This confirms that differencing was much more efficient at removing the trend than linear regression.
 
 ### Q5
 Compute the Seasonal Mann-Kendall and ADF Test for the original "Total Renewable Energy Production" series. Ask R to print the results. Interpret the results for both test. What is the conclusion from the Seasonal Mann Kendall test? What's the conclusion for the ADF test? Do they match what you observed in Q3 plot? Recall that having a unit root means the series has a stochastic trend. And when a series has stochastic trend we need to use differencing to remove the trend.
 
 ```{r}
 
+#Seasonal Mann-Kendall (because data is monthly with seasonality)
+SMK_renewable <- SeasonalMannKendall(energy_ts[,"Total Renewable Energy Production"])
+print("Results for Seasonal Mann-Kendall test:")
+summary(SMK_renewable)
+
+#ADF test
+print("Results for ADF test:")
+print(adf.test(energy_ts[,"Total Renewable Energy Production"], alternative = "stationary"))
+
 ```
 
-> Answer: 
+
+> Answer: The Seasonal Mann-Kendall test gives a very small p-value, so we reject the null hypothesis of no trend. This confirms there is a deterministic trend in the series. The ADF test gives a p-value greater than 0.05, so we fail to reject the null hypothesis of a unit root, which means the series also has a stochastic trend. Both tests agree with what I saw in Q3, the series is non-stationary and the trend is best removed by differencing rather than by linear regression, which matches the visual finding that differencing worked better. 
 
 ### Q6
 Aggregate the original "Total Renewable Energy Production" series by year. You can use the same procedure we used in class. Store series in a matrix where rows represent months and columns represent years. And then take the columns mean using function colMeans(). Recall the goal is the remove the seasonal variation from the series to check for trend. Convert the accumulates yearly series into a time series object and plot the series using autoplot().
 
 ```{r}
 
+last_full_year <- floor(nobserved / 12) * 12
+renewable_trimmed <- energy_subset$`Total Renewable Energy Production`[1:last_full_year]
+
+#Reshape into a matrix (rows = months, cols = years)
+renewable_matrix <- matrix(renewable_trimmed, nrow = 12, byrow = FALSE)
+
+#Take column means (one mean per year)
+yearly_renewable <- colMeans(renewable_matrix)
+
+#Convert to ts object (yearly)
+ts_yearly_renewable <- ts(yearly_renewable, start = 1973, frequency = 1)
+
+#Plot
+autoplot(ts_yearly_renewable) +
+  labs(title = "Total Renewable Energy Production - Yearly Average",
+       x = "Year", y = "Trillion Btu") +
+  theme_minimal()
 ```
+
+
 
 ### Q7
 Apply the Mann Kendall, Spearman correlation rank test and ADF. Are the results from the test in agreement with the test results for the monthly series, i.e., results for Q5?
 
 ```{r}
 
+#Mann-Kendall on yearly data 
+MK_yearly <- MannKendall(ts_yearly_renewable)
+print("Results for Mann-Kendall test on yearly data:")
+summary(MK_yearly)
+print("Results for Spearman Correlation test on yearly data:")
+spearman_yearly <- cor.test(yearly_renewable, c(1:length(yearly_renewable)),
+                            method = "spearman")
+print(spearman_yearly)
+
+#ADF test on yearly data
+print("Results for ADF test on yearly data:")
+print(adf.test(ts_yearly_renewable, alternative = "stationary"))
 ```
 
-> Answer: 
+> Answer: The Mann-Kendall and Spearman tests on the yearly series both give very small p-values, confirming a strong deterministic trend (same conclusion as Q5). The ADF test on the yearly series also gives a p-value greater than 0.05, meaning we still cannot reject the unit root hypothesis. The yearly results agree with the monthly results from Q5, the series has both a deterministic and stochastic trend, and differencing is the better way to remove it.

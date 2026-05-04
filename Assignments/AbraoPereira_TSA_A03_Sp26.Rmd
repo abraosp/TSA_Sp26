@@ -76,9 +76,9 @@ head(energy_ts)
 
 ```
 
+## Initial Plots
 
-
-```{r initial plots}
+```{r initial plots, warning=FALSE}
  
 plot_grid(
   autoplot(energy_ts[,"Total Renewable Energy Production"]) +
@@ -115,7 +115,7 @@ plot_grid(
 
 From the plot in Q1, do the series Total Renewable Energy Production and Hydroelectric Power Consumption appear to have a trend? If yes, what kind of trend?
 
-> Answer: Total Renewable Energy Production has a clear upward trend, going from around 200 in 1973 to over 800 by 2025. The slow decay in the ACF also confirms the trend. Hydroelectric Power Consumption does not show a clear long-term trend, it stays around the same range over time but shows clear seasonal cycles in both the time series and the ACF plot. 
+> Answer: Total Renewable Energy Production has a clear increasing trend, going from around 200 in 1973 to over 800 by 2025. The slow decay in the ACF also confirms the trend. Hydroelectric Power Consumption does not show a clear long-term trend, it stays around the same range over time but shows clear seasonal cycles in both the time series and the ACF plot. 
 
 ### Q3
 
@@ -179,7 +179,7 @@ autoplot(energy_ts[,"Hydroelectric Power Consumption"], series = "Original") +
   theme_minimal()
 ```
 
-> Answer: For Total Renewable Energy Production, the detrended series no longer climbs from 200 to 800, instead it fluctuates around zero. The upward trend was removed by subtracting the fitted line. For Hydroelectric Power Consumption, the detrended series looks almost the same shape as the original but shifted down to fluctuate around zero, because there was barely any trend to remove.
+> Answer: The detrende series still have a little strend upward right after 2010. For Total Renewable Energy Production, the detrended series no longer climbs from 200 to 800, instead it fluctuates around zero. The upward trend was removed by subtracting the fitted line. For Hydroelectric Power Consumption, the detrended series looks almost the same shape as the original but shifted down to fluctuate around zero, because there was barely any trend to remove.
 
 
 
@@ -205,6 +205,7 @@ plot_grid(
            main = "PACF - Detrended Hydro"),
   nrow = 1
 )
+
 ```
 
 > Answer: For Total Renewable Energy Production, the ACF still shows slow decay but it comes down faster than in Q1, and the seasonal peaks at lags 12, 24, and 36 are now more visible. This shows the linear detrending helped but did not fully remove the autocorrelation. For Hydroelectric Power Consumption, the ACF and PACF look nearly the same as Q1 because there was no real trend to remove.
@@ -316,7 +317,8 @@ plot_grid(
 
 
 
-
+## AI Statement: 
+AI was used to help correct grammar errors and organized sentences for the write up answers and interprations. It was also use to debugging code errors for example knitting. 
 
 
 
